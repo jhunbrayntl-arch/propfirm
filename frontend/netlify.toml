@@ -1,11 +1,13 @@
 [build]
-  base = "frontend"
   publish = ".next"
   command = "npm run build"
 
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "9"
+
+# Use Netlify Next.js plugin
+plugins = ["@netlify/plugin-nextjs"]
 
 # Redirect all API calls to backend (replace YOUR-BACKEND-URL with your actual backend URL)
 [[redirects]]
@@ -14,12 +16,6 @@
   status = 200
   force = true
   headers = { X-From = "Netlify" }
-
-# SPA fallback for Next.js client-side routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
 
 # Security headers
 [[headers]]
