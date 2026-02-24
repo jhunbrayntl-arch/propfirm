@@ -1,0 +1,303 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - traders and admins
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      UserRole @default(TRADER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  challenges    Challenge[]
+  fundedAccounts FundedAccount[]
+  transactions  Transaction[]
+  payouts       Payout[]
+  settings      UserSettings?
+
+  @@map("users")
+}
+
+enum UserRole {
+  TRADER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model UserSettings {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailNotifications Boolean @default(true)
+  twoFactorEnabled Boolean @default(false)
+  timezone        String  @default("UTC")
+  currency        String  @default("USD")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+// Challenge models - evaluation phases
+model Challenge {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeType   ChallengeType
+  accountSize     Float
+  currency        String        @default("USD")
+  price           Float
+  status          ChallengeStatus @default(ACTIVE)
+  startDate       DateTime      @default(now())
+  endDate         DateTime?
+  completedAt     DateTime?
+
+  // Challenge rules
+  profitTarget    Float         // Target profit percentage (e.g., 10 for 10%)
+  maxDailyLoss    Float         // Max daily loss percentage (e.g., 5 for 5%)
+  maxTotalLoss    Float         // Max total loss percentage (e.g., 10 for 10%)
+  minTradingDays  Int           // Minimum trading days required
+  maxLeverage     Float         @default(100)
+  allowedInstruments String[]   // e.g., ["FOREX", "CRYPTO", "INDICES"]
+  newsTradingAllowed Bool       @default(false)
+  weekendHoldingAllowed Bool    @default(true)
+  eaTradingAllowed Bool         @default(true)
+
+  // Progress tracking
+  currentProfit   Float         @default(0)
+  currentDrawdown Float         @default(0)
+  peakBalance     Float
+  startingBalance Float
+  tradingDays     Int           @default(0)
+  violations      Violation[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("challenges")
+}
+
+enum ChallengeType {
+  EVALUATION
+  VERIFICATION
+  EXPRESS
+  DIRECT_FUNDING
+}
+
+enum ChallengeStatus {
+  ACTIVE
+  PASSED
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+model Violation {
+  id          String   @id @default(cuid())
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  type        ViolationType
+  description String
+  severity    ViolationSeverity @default(WARNING)
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("violations")
+}
+
+enum ViolationType {
+  DAILY_LOSS_BREACH
+  MAX_LOSS_BREACH
+  PROFIT_TARGET_REACHED
+  MIN_TRADING_DAYS_NOT_MET
+  NEWS_TRADING
+  WEEKEND_HOLDING
+  LEVERAGE_BREACH
+  OTHER
+}
+
+enum ViolationSeverity {
+  WARNING
+  CRITICAL
+  FAILURE
+}
+
+// Funded Account - after passing challenge
+model FundedAccount {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountNumber   String   @unique
+  accountSize     Float
+  currency        String   @default("USD")
+  status          FundedStatus @default(ACTIVE)
+  profitSplit     Float    @default(0.8) // 80% to trader
+  startingBalance Float
+  currentBalance  Float
+  peakBalance     Float
+  totalWithdrawn  Float    @default(0)
+  totalProfit     Float    @default(0)
+
+  // Rules
+  maxDailyLoss    Float
+  maxTotalLoss    Float
+  minProfitDays   Int      @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  trades          Trade[]
+  payouts         Payout[]
+
+  @@map("funded_accounts")
+}
+
+enum FundedStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+// Trade model - tracks all trades
+model Trade {
+  id              String   @id @default(cuid())
+  fundedAccountId String?
+  fundedAccount   FundedAccount? @relation(fields: [fundedAccountId], references: [id], onDelete: Cascade)
+  challengeId     String?
+  challenge       Challenge? @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  
+  symbol          String
+  type            OrderType
+  size            Float    // Lot size
+  openPrice       Float
+  closePrice      Float?
+  stopLoss        Float?
+  takeProfit      Float?
+  pnl             Float    @default(0)
+  commission      Float    @default(0)
+  swap            Float    @default(0)
+  status          TradeStatus @default(OPEN)
+  
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  
+  metadata        Json?    // Additional trade data
+
+  @@map("trades")
+}
+
+enum OrderType {
+  BUY
+  SELL
+}
+
+enum TradeStatus {
+  OPEN
+  CLOSED
+  PENDING
+  CANCELLED
+}
+
+// Transaction model - payments and withdrawals
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      Float
+  currency    String   @default("USD")
+  status      TransactionStatus @default(PENDING)
+  description String?
+  metadata    Json?
+  
+  stripePaymentId String?
+  stripeChargeId  String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("transactions")
+}
+
+enum TransactionType {
+  CHALLENGE_PURCHASE
+  PAYOUT
+  REFUND
+  BONUS
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// Payout model - profit withdrawals
+model Payout {
+  id              String   @id @default(cuid())
+  fundedAccountId String
+  fundedAccount   FundedAccount @relation(fields: [fundedAccountId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Float
+  profitSplit     Float    // Percentage trader receives
+  traderAmount    Float    // Actual amount to trader
+  status          PayoutStatus @default(PENDING)
+  processedAt     DateTime?
+  rejectionReason String?
+  
+  stripeTransferId String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("payouts")
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+// Market data cache (for simulated trading)
+model MarketData {
+  id        String   @id @default(cuid())
+  symbol    String   @unique
+  bid       Float
+  ask       Float
+  spread    Float
+  timestamp DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("market_data")
+}
+
+// System settings
+model SystemSettings {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}

@@ -1,0 +1,27 @@
+# Render Backend Configuration
+# Deploy this folder to Render as a Web Service
+
+services:
+  - type: web
+    name: propfirm-backend
+    env: node
+    buildCommand: cd backend && npm install && npm run prisma:generate && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: propfirm-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+
+databases:
+  - name: propfirm-db
+    databaseName: propfirm
+    user: propfirm

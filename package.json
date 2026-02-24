@@ -1,0 +1,39 @@
+{
+  "name": "propfirm-platform",
+  "version": "1.0.0",
+  "description": "PropFirm Trading Platform - Ready for Netlify Deployment",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "prisma:generate": "cd backend && npm run prisma:generate",
+    "prisma:migrate": "cd backend && npm run prisma:migrate",
+    "prisma:studio": "cd backend && npm run prisma:studio",
+    "netlify:login": "netlify login",
+    "netlify:init": "cd frontend && netlify init",
+    "netlify:deploy": "cd frontend && netlify deploy --prod",
+    "netlify:env": "cd frontend && netlify env:set NEXT_PUBLIC_API_URL",
+    "deploy": "npm run build && npm run netlify:deploy"
+  },
+  "keywords": [
+    "propfirm",
+    "trading",
+    "fundednext",
+    "forex",
+    "netlify",
+    "nextjs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
